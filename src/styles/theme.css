@@ -1,0 +1,176 @@
+/* ==========================================================================
+   SaraText - theme tokens
+   Both themes are defined up front so every component only ever reads vars.
+   ========================================================================== */
+
+:root {
+  /* Windows-style invisible resize border around frameless windows. */
+  --resize-b: 4px;
+
+  /* Shared metrics */
+  --titlebar-h: 36px;
+  --tabstrip-h: 34px;
+  --statusbar-h: 24px;
+  --findbar-h: 38px;
+  --gutter-w: 54px;
+  --radius: 6px;
+  --radius-lg: 10px;
+
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "Cascadia Code", "Cascadia Mono", "JetBrains Mono", Consolas,
+               "SF Mono", "Menlo", "DejaVu Sans Mono", monospace;
+
+  --shadow-1: 0 2px 8px rgba(0, 0, 0, 0.28);
+  --shadow-2: 0 12px 40px rgba(0, 0, 0, 0.45);
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* ---------------------------------------------------------------- dark --- */
+html[data-theme="dark"] {
+  --bg-app:        #1b1d23;
+  --bg-chrome:     #22242b;
+  --bg-chrome-2:   #272a32;
+  --bg-editor:     #1b1d23;
+  --bg-elevated:   #2b2e37;
+  --bg-hover:      #32363f;
+  --bg-active:     #3a3f4a;
+  --bg-input:      #191b20;
+  --bg-overlay:    rgba(10, 11, 14, 0.62);
+
+  --fg:            #e6e8ee;
+  --fg-muted:      #9aa1b0;
+  --fg-subtle:     #6d7484;
+  --fg-inverse:    #14161a;
+
+  --border:        #33363f;
+  --border-strong: #434853;
+
+  --accent:        #7aa2f7;
+  --accent-hover:  #8db2f9;
+  --accent-soft:   rgba(122, 162, 247, 0.16);
+  --accent-fg:     #0f1116;
+
+  --danger:        #f7768e;
+  --warn:          #e0af68;
+  --ok:            #9ece6a;
+
+  --gutter-fg:     #565d6b;
+  --gutter-fg-cur: #c0c6d4;
+  --gutter-bg:     #1b1d23;
+  --line-current:  rgba(255, 255, 255, 0.035);
+
+  --sel-bg:        rgba(122, 162, 247, 0.28);
+  --match-bg:      rgba(224, 175, 104, 0.30);
+  --match-cur-bg:  rgba(224, 175, 104, 0.65);
+  --match-cur-fg:  #14161a;
+
+  --scrollbar:     #3a3f4a;
+  --scrollbar-hover: #4c525f;
+
+  --caret:         #7aa2f7;
+}
+
+/* --------------------------------------------------------------- light --- */
+html[data-theme="light"] {
+  --bg-app:        #f4f5f8;
+  --bg-chrome:     #e9ebf0;
+  --bg-chrome-2:   #e1e4ea;
+  --bg-editor:     #ffffff;
+  --bg-elevated:   #ffffff;
+  --bg-hover:      #dbdfe7;
+  --bg-active:     #ccd2dd;
+  --bg-input:      #ffffff;
+  --bg-overlay:    rgba(30, 34, 42, 0.38);
+
+  --fg:            #1e222b;
+  --fg-muted:      #5a6272;
+  --fg-subtle:     #858d9d;
+  --fg-inverse:    #ffffff;
+
+  --border:        #d3d8e2;
+  --border-strong: #b8bfcd;
+
+  --accent:        #3b6fd4;
+  --accent-hover:  #2f5fbd;
+  --accent-soft:   rgba(59, 111, 212, 0.12);
+  --accent-fg:     #ffffff;
+
+  --danger:        #c93c52;
+  --warn:          #a9741a;
+  --ok:            #3f8a2e;
+
+  --gutter-fg:     #a3aab8;
+  --gutter-fg-cur: #3d4453;
+  --gutter-bg:     #f4f5f8;
+  --line-current:  rgba(0, 0, 0, 0.028);
+
+  --sel-bg:        rgba(59, 111, 212, 0.22);
+  --match-bg:      rgba(224, 175, 104, 0.42);
+  --match-cur-bg:  #d99b2b;
+  --match-cur-fg:  #ffffff;
+
+  --scrollbar:     #c3c9d4;
+  --scrollbar-hover: #a7aebd;
+
+  --caret:         #3b6fd4;
+}
+
+/* ----------------------------------------------------------------- base --- */
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-app);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: var(--sel-bg); }
+
+/* Scrollbars ------------------------------------------------------------- */
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); background-clip: content-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* Focus ------------------------------------------------------------------ */
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 5px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--bg-chrome-2);
+  color: var(--fg-muted);
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  line-height: 1.5;
+  text-align: center;
+}

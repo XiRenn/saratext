@@ -1,0 +1,83 @@
+{
+  "name": "saratext",
+  "productName": "SaraText",
+  "version": "1.0.0",
+  "description": "A fast, minimal notepad app for Windows, built with Electron.",
+  "main": "main.js",
+  "author": "WhyNot",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "icon": "node scripts/make-icon.js",
+    "test:shell": "node scripts/check-open-with.js",
+    "test:menu": "node scripts/test-menu.js",
+    "test:ui": "node scripts/test-context-font.js",
+    "test": "npm run test:shell && npm run test:menu && npm run test:ui",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win",
+    "dist:portable": "electron-builder --win portable",
+    "dist:installer": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.whynot.saratext",
+    "productName": "SaraText",
+    "copyright": "Copyright © 2026 WhyNot",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "assets/**/*",
+      "package.json",
+      "!**/*.map"
+    ],
+    "win": {
+      "icon": "assets/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "fileAssociations": [
+        {
+          "ext": "txt",
+          "name": "Text Document",
+          "description": "Text Document",
+          "icon": "assets/icon.png",
+          "role": "Editor"
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SaraText",
+      "artifactName": "${productName}-${version}-Setup.${ext}",
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-Portable.${ext}"
+    }
+  }
+}

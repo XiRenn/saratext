@@ -1,0 +1,3 @@
+/* Temporary diagnostic: does Chromium recompute the hit test? */
+.menu { contain: none !important; }
+.menu__item:hover { background: var(--accent) !important; color: var(--accent-fg) !important; }

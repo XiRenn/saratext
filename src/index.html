@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+  <title>SaraText</title>
+  <link rel="stylesheet" href="styles/theme.css" />
+  <link rel="stylesheet" href="styles/app.css" />
+</head>
+<body>
+
+  <!-- Frameless resize handles. Invisible edge overlays: re-enable resizing
+       along the top edge, which Windows leaves dead on a frameless window. -->
+  <div class="rz rz--n" aria-hidden="true"></div>
+  <div class="rz rz--s" aria-hidden="true"></div>
+  <div class="rz rz--w" aria-hidden="true"></div>
+  <div class="rz rz--e" aria-hidden="true"></div>
+  <div class="rz rz--nw" aria-hidden="true"></div>
+  <div class="rz rz--sw" aria-hidden="true"></div>
+  <div class="rz rz--se" aria-hidden="true"></div>
+
+  <!-- ============================ Title bar ============================ -->
+  <header class="titlebar" id="titlebar">
+    <div class="titlebar__left">
+      <div class="brand">
+        <svg class="brand__mark" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 3h9l5 5v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"
+                fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M14 3v5h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M7.5 13h8M7.5 16.5h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        <span class="brand__name">SaraText</span>
+      </div>
+
+      <!-- Menu bar -->
+      <nav class="menubar" id="menubar" role="menubar"></nav>
+    </div>
+
+    <div class="titlebar__right">
+      <button class="winbtn" data-win="minimize" title="Minimize" aria-label="Minimize">
+        <svg viewBox="0 0 12 12"><path d="M2 6h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </button>
+      <button class="winbtn" data-win="maximize" title="Maximize" aria-label="Maximize">
+        <svg viewBox="0 0 12 12"><rect x="2.5" y="2.5" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+      </button>
+      <button class="winbtn winbtn--close" data-win="close" title="Close" aria-label="Close">
+        <svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ============================ Tab strip ============================ -->
+  <div class="tabstrip" id="tabstrip">
+    <div class="tabs" id="tabs" role="tablist"></div>
+    <button class="tabstrip__new" id="newTabBtn" title="New tab (Ctrl+N)" aria-label="New tab">
+      <svg viewBox="0 0 14 14"><path d="M7 3v8M3 7h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+    </button>
+    <div class="tabstrip__spacer"></div>
+  </div>
+
+  <!-- ========================= Find / Replace ========================= -->
+  <div class="findbar" id="findbar" hidden>
+    <div class="findbar__group">
+      <input type="text" id="findInput" class="findbar__input" placeholder="Find" spellcheck="false" />
+      <span class="findbar__count" id="findCount">0 / 0</span>
+    </div>
+    <div class="findbar__group findbar__group--replace" id="replaceGroup">
+      <input type="text" id="replaceInput" class="findbar__input" placeholder="Replace with" spellcheck="false" />
+    </div>
+    <div class="findbar__actions">
+      <label class="findbar__opt" title="Match case (Alt+C)">
+        <input type="checkbox" id="optCase" /><span>Aa</span>
+      </label>
+      <label class="findbar__opt" title="Whole word (Alt+W)">
+        <input type="checkbox" id="optWord" /><span>ab</span>
+      </label>
+      <label class="findbar__opt" title="Regex (Alt+R)">
+        <input type="checkbox" id="optRegex" /><span>.*</span>
+      </label>
+      <span class="findbar__sep"></span>
+      <button class="findbar__btn" id="findPrev" title="Previous (Shift+F3)">↑</button>
+      <button class="findbar__btn" id="findNext" title="Next (F3)">↓</button>
+      <button class="findbar__btn" id="replaceOne" title="Replace">Replace</button>
+      <button class="findbar__btn" id="replaceAll" title="Replace all">All</button>
+      <button class="findbar__btn findbar__btn--close" id="findClose" title="Close (Esc)">✕</button>
+    </div>
+  </div>
+
+  <!-- ============================ Editor ============================== -->
+  <main class="editorWrap" id="editorWrap">
+    <div class="gutter" id="gutter" aria-hidden="true"></div>
+    <div class="editorPane" id="editorPane">
+      <div class="currentLine" id="currentLine" aria-hidden="true"></div>
+      <pre class="highlightLayer" id="highlightLayer" aria-hidden="true"></pre>
+      <textarea id="editor"
+                class="editor"
+                spellcheck="false"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                wrap="off"></textarea>
+    </div>
+    <div class="emptyState" id="emptyState" hidden>
+      <h2>Nothing open</h2>
+      <p>Press <kbd>Ctrl</kbd>+<kbd>N</kbd> for a new file, or drag one in.</p>
+      <button class="emptyState__btn" id="emptyOpen">Open a file</button>
+    </div>
+  </main>
+
+  <!-- =========================== Status bar =========================== -->
+  <footer class="statusbar">
+    <div class="statusbar__left">
+      <span class="status" id="statLnCol">Ln 1, Col 1</span>
+      <span class="status__div"></span>
+      <span class="status" id="statSel" hidden></span>
+      <span class="status__div" id="statSelDiv" hidden></span>
+      <span class="status" id="statCount">0 chars</span>
+    </div>
+    <div class="statusbar__right">
+      <button class="status status--btn" id="statWrap" title="Toggle word wrap (Alt+Z)">Wrap: off</button>
+      <span class="status__div"></span>
+      <button class="status status--btn" id="statEncoding" title="File encoding">UTF-8</button>
+      <span class="status__div"></span>
+      <span class="status" id="statEol">LF</span>
+      <span class="status__div"></span>
+      <span class="status" id="statPath" title="">Untitled</span>
+      <span class="status__div"></span>
+      <span class="status status--zoom" id="statZoom" title="Zoom">100%</span>
+    </div>
+  </footer>
+
+  <!-- ======================== Command palette ========================= -->
+  <div class="overlay" id="paletteOverlay" hidden>
+    <div class="palette" role="dialog" aria-modal="true" aria-label="Command palette">
+      <div class="palette__inputRow">
+        <svg class="palette__icon" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <input type="text" id="paletteInput" class="palette__input" placeholder="Type a command…" spellcheck="false" />
+      </div>
+      <div class="palette__list" id="paletteList" role="listbox"></div>
+      <div class="palette__hint">
+        <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+        <span><kbd>Enter</kbd> run</span>
+        <span><kbd>Esc</kbd> close</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================== Generic modal ======================== -->
+  <div class="overlay" id="modalOverlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <h3 class="modal__title" id="modalTitle">Title</h3>
+      <p class="modal__body" id="modalBody"></p>
+      <div class="modal__field" id="modalField" hidden>
+        <input type="text" id="modalInput" class="modal__input" spellcheck="false" />
+      </div>
+      <div class="modal__actions" id="modalActions"></div>
+    </div>
+  </div>
+
+  <!-- =========================== Font dialog ========================== -->
+  <div class="overlay" id="fontOverlay" hidden>
+    <div class="modal modal--font" role="dialog" aria-modal="true" aria-labelledby="fontTitle">
+      <h3 class="modal__title" id="fontTitle">Editor Font</h3>
+
+      <div class="fontGrid">
+        <div class="fontGrid__left">
+          <label class="fontField__label" for="fontFamilyInput">Family</label>
+          <input type="text" id="fontFamilyInput" class="fontField__input"
+                 placeholder="Default (Cascadia Code, Consolas…)" spellcheck="false"
+                 autocomplete="off" />
+          <div class="fontList" id="fontList" role="listbox" aria-label="Installed fonts"></div>
+        </div>
+
+        <div class="fontGrid__right">
+          <div class="fontField">
+            <span class="fontField__label">Size</span>
+            <div class="fontSize">
+              <button class="fontSize__btn" id="fontSizeDown" type="button" aria-label="Smaller">−</button>
+              <input type="number" id="fontSize" class="fontSize__input" min="6" max="72" step="0.5" value="12.5" />
+              <button class="fontSize__btn" id="fontSizeUp" type="button" aria-label="Larger">+</button>
+            </div>
+            <span class="fontField__hint" id="fontSizeLabel">12.5 px</span>
+          </div>
+
+          <div class="fontField">
+            <span class="fontField__label">Preview</span>
+            <div class="fontPreview" id="fontSample"></div>
+            <p class="fontPreview__note" id="fontNote" hidden></p>
+          </div>
+
+          <label class="fontCheck">
+            <input type="checkbox" id="fontLigatures" />
+            <span>Enable ligatures</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal__actions modal__actions--split">
+        <button class="modal__btn modal__btn--reset" id="fontReset" type="button">Reset</button>
+        <div class="modal__actionsEnd">
+          <button class="modal__btn" id="fontCancel" type="button">Cancel</button>
+          <button class="modal__btn modal__btn--primary" id="fontApply" type="button">Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================= Toasts ============================= -->
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script src="renderer/commands.js"></script>
+  <script src="renderer/store.js"></script>
+  <script src="renderer/editor.js"></script>
+  <script src="renderer/tabs.js"></script>
+  <script src="renderer/search.js"></script>
+  <script src="renderer/palette.js"></script>
+  <script src="renderer/menubar.js"></script>
+  <script src="renderer/contextmenu.js"></script>
+  <script src="renderer/fontdialog.js"></script>
+  <script src="renderer/statusbar.js"></script>
+  <script src="renderer/app.js"></script>
+</body>
+</html>
