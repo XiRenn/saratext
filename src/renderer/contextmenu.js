@@ -9,9 +9,10 @@
  * this module fires only for right-clicks, and every open/close path here
  * closes any open menu-bar dropdown first.
  *
- * Registers three named contexts:
+ * Registers four named contexts:
  *
- *   editor  the textarea, the gutter and the current-line band
+ *   gutter  the line-number column
+ *   editor  the textarea and the current-line band
  *   tabs    a tab in the tab strip (tab-aware items are prepended)
  *   app     the tab strip background, the status bar, the empty state
  *
@@ -49,8 +50,8 @@ const ContextMenu = (() => {
 
   /**
    * @param {string}   name      context identifier
-   * @param {string[]} items     command ids, '-' for a separator, '…' for a
-   *                             labelled section heading
+   * @param {string[]} items     command ids, '-' for a separator, '#'-prefixed
+   *                             for a section heading
    * @param {object}   [options]
    * @param {string}   [options.test]  CSS selector; the context applies when
    *                                   the right-click target matches it
@@ -390,7 +391,8 @@ const ContextMenu = (() => {
     '#Clipboard', '-',
     'edit.copyUpper', 'edit.copyLower', '-',
     'search.find', 'search.replace', 'search.goToLine', '-',
-    'view.toggleWrap', 'view.font', 'view.resetFont',
+    'view.toggleWrap', 'view.togglePreview', 'view.previewOnly', '-',
+    'view.font', 'view.resetFont',
   ], { test: '#editorPane, #editor' });
 
   register('tabs', [
@@ -411,7 +413,8 @@ const ContextMenu = (() => {
     'file.close', 'file.reopenClosed', '-',
     'search.find', 'search.goToLine', '-',
     'view.zoomIn', 'view.zoomOut', 'view.zoomReset', '-',
-    'view.toggleWrap', 'view.toggleTheme', '-',
+    'view.toggleWrap', 'view.togglePreview', 'view.previewOnly', '-',
+    'view.toggleTheme', '-',
     'view.font', '-',
     'app.palette', 'app.settings',
   ], { test: '.tabstrip, .statusbar, .editorWrap, .emptyState' });

@@ -35,6 +35,7 @@ body {
 /* ============================== title bar ============================== */
 .titlebar {
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   height: var(--titlebar-h);
   flex: 0 0 var(--titlebar-h);
@@ -56,6 +57,7 @@ body {
 
 /* Sits above the top-edge resize strip so the window buttons still take clicks. */
 .titlebar__right {
+  flex-shrink: 0;
   position: relative;
   z-index: 210;
   display: flex;
@@ -63,24 +65,6 @@ body {
   margin-left: auto;
   height: 100%;
   -webkit-app-region: no-drag;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 8px 0 2px;
-  margin-right: 2px;
-  border-right: 1px solid var(--border);
-  height: 20px;
-  color: var(--accent);
-}
-.brand__mark { width: 16px; height: 16px; flex: 0 0 16px; }
-.brand__name {
-  color: var(--fg);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.2px;
 }
 
 /* window buttons */
@@ -98,6 +82,10 @@ body {
 .winbtn svg { width: 12px; height: 12px; }
 .winbtn:hover { background: var(--bg-hover); color: var(--fg); }
 .winbtn--close:hover { background: #d9465f; color: #fff; }
+
+@media (max-width: 520px) {
+  .titlebar .menubar__item { padding-inline: 6px; }
+}
 
 /* ================================ menubar ============================== */
 
@@ -541,6 +529,202 @@ body {
 .editorWrap[data-wrap="on"] .highlightLayer {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* Markdown preview ------------------------------------------------------- *
+   A third flex child of `.editorWrap`, toggled by the `data-mode` attribute
+   app.js stamps on it (the same element already carries `data-wrap` and
+   `data-font`). In "split" the editor and the preview share the width; in
+   "preview" the gutter and the editor pane are taken out of the layout
+   entirely, so the preview gets the whole pane. */
+
+.editorWrap[data-mode="split"] > .editorPane { flex: 1 1 50%; }
+
+.editorWrap[data-mode="preview"] > .gutter,
+.editorWrap[data-mode="preview"] > .editorPane { display: none; }
+
+.previewPane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 50%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-editor);
+  border-left: 1px solid var(--border);
+}
+
+.editorWrap[data-mode="preview"] > .previewPane { border-left: 0; }
+
+/* `display: flex` above would otherwise beat the UA sheet's `display: none`
+   for the `hidden` attribute, so it has to be restated here. */
+.previewPane[hidden] { display: none; }
+
+.preview__bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 26px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-chrome);
+  color: var(--fg-subtle);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.preview__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preview__spacer { flex: 1 1 auto; }
+
+.preview__btn {
+  height: 18px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  color: var(--fg-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.preview__btn:hover { background: var(--bg-hover); color: var(--fg); }
+
+/* The app disables selection globally (`body { user-select: none }`), so the
+   one surface that is meant to be read and copied has to opt back in. */
+.preview__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 18px 40px;
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  line-height: 1.65;
+  user-select: text;
+  overflow-wrap: break-word;
+}
+
+.preview__body > :first-child { margin-top: 0; }
+.preview__body > :last-child { margin-bottom: 0; }
+
+.md-h { margin: 1.5em 0 0.55em; font-weight: 600; line-height: 1.28; }
+h1.md-h { font-size: 1.65em; }
+h2.md-h { font-size: 1.35em; }
+h3.md-h { font-size: 1.15em; }
+h4.md-h, h5.md-h, h6.md-h { font-size: 1em; }
+h1.md-h, h2.md-h { padding-bottom: 0.25em; border-bottom: 1px solid var(--border); }
+h6.md-h { color: var(--fg-muted); }
+
+.md-p { margin: 0 0 0.85em; }
+
+.md-list { margin: 0 0 0.85em; padding-left: 1.6em; }
+.md-list .md-list { margin-bottom: 0; }
+.md-li { margin: 0.15em 0; }
+.md-li--task { list-style: none; margin-left: -1.35em; }
+.md-task { margin-right: 0.5em; vertical-align: middle; }
+
+.md-quote {
+  margin: 0 0 0.85em;
+  padding: 0.1em 0 0.1em 0.9em;
+  border-left: 3px solid var(--border-strong);
+  color: var(--fg-muted);
+}
+
+.md-hr { height: 1px; margin: 1.4em 0; border: 0; background: var(--border); }
+
+.md-link { color: var(--accent); text-decoration: none; cursor: pointer; }
+.md-link:hover { text-decoration: underline; }
+.md-link--blocked { color: var(--danger); text-decoration: line-through; }
+
+.md-code-inline {
+  padding: 0.12em 0.35em;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-chrome-2);
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+
+.md-pre {
+  margin: 0 0 0.9em;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-input);
+  overflow: hidden;
+}
+
+.md-pre__bar {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px 0 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-chrome-2);
+  color: var(--fg-subtle);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.md-pre__copy {
+  margin-left: auto;
+  height: 17px;
+  padding: 0 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+.md-pre__copy:hover { background: var(--bg-hover); color: var(--fg); }
+
+.md-pre code {
+  display: block;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+.md-table {
+  width: 100%;
+  margin: 0 0 0.9em;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.md-table th,
+.md-table td {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.md-table th { background: var(--bg-chrome-2); font-weight: 600; }
+
+/* Images are placeholders until document-relative paths can be resolved. */
+.md-img {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 1px 6px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 4px;
+  color: var(--fg-subtle);
+  font-size: 0.9em;
+}
+.md-img__src { font-family: var(--font-mono); font-size: 0.85em; opacity: 0.75; }
+
+.md-notice {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  color: var(--warn);
+  font-size: 12.5px;
 }
 
 /* Empty state ------------------------------------------------------------ */

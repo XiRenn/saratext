@@ -53,6 +53,12 @@ const Docs = (() => {
       caret: { start: 0, end: 0 },
       scrollTop: 0,
       scrollLeft: 0,
+      /**
+       * View mode for this tab: 'edit' | 'split' | 'preview'. Per document
+       * rather than global, so switching tabs restores the view that tab was
+       * left in - the same reasoning as `caret` and `scrollTop`.
+       */
+      view: 'edit',
       dirty: false,
       size: 0,
       ...overrides,

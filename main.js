@@ -296,12 +296,12 @@ function createWindow() {
   const state = loadWindowState();
 
   win = new BrowserWindow({
-    width: state.width,
+    width: Math.max(360, state.width),
     height: state.height,
     x: state.x,
     y: state.y,
-    minWidth: 520,
-    minHeight: 360,
+    minWidth: 360,
+    minHeight: 280,
     frame: false,
     show: false,
     backgroundColor: '#1b1d23',
@@ -637,6 +637,19 @@ function registerIPC() {
       case 'fullscreen-toggle': win.setFullScreen(!win.isFullScreen()); break;
       case 'always-on-top': win.setAlwaysOnTop(!win.isAlwaysOnTop()); break;
       case 'close': win.close(); break;
+      case 'size-small':
+      case 'size-medium':
+      case 'size-large': {
+        const sizes = {
+          'size-small': [350, 280],
+          'size-medium': [480, 350],
+          'size-large': [700, 600],
+        };
+        if (win.isFullScreen()) win.setFullScreen(false);
+        if (win.isMaximized()) win.unmaximize();
+        win.setSize(...sizes[action]);
+        break;
+      }
       default: break;
     }
     return {
@@ -669,6 +682,26 @@ function registerIPC() {
   ipcMain.handle('file:reveal', async (_e, filePath) => {
     shell.showItemInFolder(filePath);
     return { ok: true };
+  });
+
+  /**
+   * Open a link from the markdown preview in the default browser.
+   *
+   * The renderer already routes only http(s) / mailto here, but the check is
+   * repeated on this side of the boundary: `shell.openExternal` hands the
+   * string to the OS, so an unvetted value is a command-execution surface.
+   */
+  ipcMain.handle('shell:open-external', async (_e, url) => {
+    const target = String(url || '').trim();
+    if (!/^https?:\/\/|^mailto:/i.test(target)) {
+      return { ok: false, error: 'unsupported scheme' };
+    }
+    try {
+      await shell.openExternal(target);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
   });
 
   ipcMain.handle('app:info', async () => ({

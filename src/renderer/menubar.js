@@ -204,7 +204,10 @@ const MenuBar = (() => {
   /** Anchor an open dropdown under its caption button. */
   function position(group, button, menu) {
     const btn = button.getBoundingClientRect();
-    menu.style.top = `${Math.round(btn.bottom + 5)}px`;
+    const top = Math.round(btn.bottom + 5);
+    menu.style.top = `${top}px`;
+    menu.style.maxHeight = `${Math.max(0, window.innerHeight - top - 5)}px`;
+    menu.style.overflowY = 'auto';
     // Right-aligned menus keep their right edge under the button's right edge.
     if (button.dataset.align === 'end') {
       menu.style.right = `${Math.round(window.innerWidth - btn.right)}px`;
@@ -213,6 +216,9 @@ const MenuBar = (() => {
       menu.style.left = `${Math.round(btn.left)}px`;
       menu.style.right = 'auto';
     }
+    const bounds = menu.getBoundingClientRect();
+    menu.style.left = `${Math.max(5, Math.min(bounds.left, window.innerWidth - bounds.width - 5))}px`;
+    menu.style.right = 'auto';
   }
 
   /** Recompute disabled/checked state without rebuilding the menu. */

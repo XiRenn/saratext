@@ -23,6 +23,11 @@ contextBridge.exposeInMainWorld('sara', {
   saveFile: (payload) => ipcRenderer.invoke('file:save', payload),
   fileExists: (filePath) => ipcRenderer.invoke('file:exists', filePath),
   revealFile: (filePath) => ipcRenderer.invoke('file:reveal', filePath),
+  /**
+   * Hand a link to the OS browser. The main process re-checks the scheme,
+   * so the renderer cannot use this to launch anything else.
+   */
+  openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
 
   /* ---- dialogs --------------------------------------------------- */
   confirm: (opts) => ipcRenderer.invoke('dialog:confirm', opts),

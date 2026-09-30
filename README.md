@@ -37,11 +37,21 @@ installed on this machine. A live sample renders as you pick. The size here
 multiplies with zoom rather than replacing it, so 110% zoom on a 17px font
 renders at 18.7px.
 
+**Markdown preview** — `Ctrl+Shift+M` splits the pane and renders the document
+side by side; `Ctrl+Shift+E` gives the preview the whole window. Headings (ATX
+and setext), ordered/unordered/nested/task lists, blockquotes, fenced code with a
+Copy button, GFM tables with column alignment, horizontal rules, and inline
+emphasis, code spans, links and strikethrough all render. The view is per tab, so
+each document comes back to the view it was left in. Web links open in your
+browser; a link to another document in the same folder opens it as a new tab.
+Images are not resolved yet and render as labelled placeholders — see
+[Markdown preview](#markdown-preview) below.
+
 **Find & Replace** — Match case, whole word and regex modes, live match count,
 amber highlighting of every match with the active one emphasized, Replace and
 Replace All, `F3` / `Shift+F3` navigation.
 
-**Command palette** — `Ctrl+Shift+P` fuzzy-searches every command in the app and
+**Command palette** — `Ctrl+Space` fuzzy-searches every command in the app and
 doubles as a quick-open for recent files.
 
 **Autosave & recovery** — Unsaved work is snapshotted to the app's data folder
@@ -79,7 +89,7 @@ fullscreen, custom dark-theme menu bar, native unsaved-changes guards.
 | `Ctrl+Shift+D` | Delete line |
 | `Alt+↑` / `Alt+↓` | Move line up / down |
 | `Ctrl+/` | Toggle line comment (`//`) |
-| `Tab` / `Shift+Tab` | Indent / outdent selection |
+| `Tab` / `Shift+Tab` | Insert an indent at the caret, or indent/outdent the selected lines |
 
 Right-click adds **Cut / Copy / Paste / Select All**, the case conversions
 (UPPER, lower, Title Case), Trim Trailing Whitespace, and Truncate Selection —
@@ -105,7 +115,9 @@ all scoped to the current selection.
 | `F11` | Fullscreen |
 | `Ctrl+\`` | Always on top |
 | `Ctrl+Shift+F` | Editor font |
-| `Ctrl+Shift+P` | Command palette |
+| `Ctrl+Shift+M` | Markdown preview: side by side |
+| `Ctrl+Shift+E` | Markdown preview: full pane |
+| `Ctrl+Space` | Command palette |
 
 ### System
 | Shortcut | Action |
@@ -138,14 +150,20 @@ src/
     contextmenu.js       Right-click menus (per-region item lists)
     fontdialog.js        Editor font picker (family, size, ligatures)
     statusbar.js         Status bar
+    markdown.js          Markdown -> DOM renderer (never builds HTML strings)
+    preview.js           Preview pane: modes, re-render, link routing
     app.js               Controller: registers commands, wires the UI
 scripts/
   make-icon.js           Regenerates assets/icon.png (no image deps)
   preview-server.js      Dev-only: serves the renderer for browser testing
   lib/cdp.js             Shared headless-Chromium/CDP client for the UI tests
   check-open-with.js     Shell "Open with" argv checks (npm run test:shell)
+  check-preview-bridge.js Verifies the injected mock bridge parses (npm run test:bridge)
   test-menu.js           Menu bar regression suite (npm run test:menu)
   test-context-font.js   Context menu + font dialog suite (npm run test:ui)
+  test-editor-keys.js    Tab / Shift+Tab editing contract (npm run test:keys)
+  test-preview.js        Markdown preview suite (npm run test:preview)
+  shot-preview.js        Dev-only: screenshots the preview into .shots/
 ```
 
 ### Design decisions
@@ -187,6 +205,39 @@ the property therefore reverts cleanly to the built-in fonts, which is what make
 have no usable GPU, and Chromium aborts with "GPU process isn't usable" rather
 than degrading. `main.js` detects that case and falls back to software rendering.
 Pass `--force-gpu` to keep hardware acceleration on unconditionally.
+
+### Markdown preview
+
+**It renders DOM, never HTML.** `markdown.js` builds nodes with `createElement` /
+`createTextNode` and never assembles an HTML string. That is a security boundary
+rather than a style preference: the source is whatever file you opened, and it is
+rendered in a page that carries `window.sara` — so a string-building renderer
+would turn any markdown file into a same-origin script host, which the page's
+`script-src 'self'` CSP cannot stop. Raw HTML in the source is therefore shown as
+literal text, and `javascript:` / `data:` / `vbscript:` links never receive an
+`href` at all.
+
+Clicks in the pane are routed through the app rather than followed by the
+browser. `http(s)` and `mailto` go to the OS browser through the main process,
+which re-validates the scheme before handing anything to `shell.openExternal`. A
+relative link is resolved against the document's own folder and is refused if it
+would climb out of it — a markdown file must not be able to talk you into opening
+`..\..\Users\…\.ssh\id_rsa` by labelling the link "docs".
+
+**A sibling pane, not a mode of the editor.** The `<textarea>` stays mounted and
+keeps the caret, so toggling the view never disturbs the document, the undo stack
+or the caret position. `data-mode` on `.editorWrap` carries the state (`edit` /
+`split` / `preview`), alongside the `data-wrap` and `data-font` axes that were
+already there. Re-renders ride the same 120 ms debounce the tab title uses, and
+carry the scroll offset across, so typing does not throw the reader back to the
+top.
+
+**Images are not resolved yet.** An `<img src>` cannot work as written: the page
+is loaded from `src/index.html`, so a document-relative path resolves against the
+wrong folder, and the CSP only permits `img-src 'self' data:`. Doing it properly
+needs a custom protocol handler in the main process with a path containment
+check. Until then an image renders as a labelled placeholder showing its alt text
+and source path, and remote images stay blocked.
 
 ---
 
@@ -280,16 +331,26 @@ This is a development aid only — it is not part of the shipped app.
 ### Running the tests
 
 ```bash
-npm test                   # all three suites
+npm test                   # all five suites, plus the bridge check
 npm run test:shell         # shell "Open with" argv parsing (pure unit checks)
+npm run test:bridge        # the mock bridge the preview server injects parses
 npm run test:menu          # menu bar: every dropdown, every item, layering, keyboard
 npm run test:ui            # context menus + font dialog
+npm run test:keys          # Tab / Shift+Tab: insert at caret, indent/outdent lines
+npm run test:preview       # markdown rendering, layout modes, link routing
 ```
 
-The three suites are self-contained: the two browser ones start their own copy of
+The suites are self-contained: the browser ones start their own copy of
 `preview-server.js`, launch headless Chromium over the DevTools protocol
 (`scripts/lib/cdp.js`) and tear both down afterwards. They must not run
 concurrently, since they share port 5199 — `npm test` chains them for that reason.
+
+`test:bridge` exists because `preview-server.js` injects its `window.sara` stub as
+JavaScript embedded in a template literal. A stray backslash or backtick there
+produces a script that fails to parse in the browser while `node --check` on the
+server file stays green — which is exactly how a broken `readFile` once shipped
+into the harness unnoticed. The check fetches the emitted string over HTTP and
+parses that.
 
 Why headless Chromium and not Electron: the UI logic that is worth regression-
 testing lives in the renderer, and `preview-server.js` exposes it with the same
@@ -297,9 +358,13 @@ testing lives in the renderer, and `preview-server.js` exposes it with the same
 [Hardware acceleration and headless machines](#hardware-acceleration-and-headless-machines) —
 Electron cannot always start on a build machine at all.)
 
-Both browser suites assert that the page logged **zero console errors**, which is
+All browser suites assert that the page logged **zero console errors**, which is
 what caught a pre-existing `Store.readDraft is not a function` boot failure that
 had been silently breaking draft recovery.
+
+`scripts/shot-preview.js` renders the preview and writes screenshots to `.shots/`
+(git-ignored) — useful for eyeballing a style change, since the DOM assertions say
+nothing about how it looks.
 
 ---
 
@@ -311,5 +376,3 @@ are Windows-oriented; the editor and file logic are platform-neutral.
 ## License
 
 MIT
-#   s a r a t e x t  
- 

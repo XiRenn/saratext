@@ -25,7 +25,16 @@ const TYPES = {
   '.json': 'application/json',
 };
 
-/** Injected before any app script: a fake preload bridge. */
+/**
+ * Injected before any app script: a fake preload bridge.
+ *
+ * NOTE: this is JavaScript inside a template literal, so a backslash in the
+ * emitted code needs to be written twice, and a regex literal containing one
+ * is a trap - `\\` collapses to `\` and the emitted pattern is garbage, which
+ * fails at parse time in the page rather than here. `node --check` on this
+ * file will not catch that, because it checks the source, not the string.
+ * Prefer string methods to regexes in here.
+ */
 const BRIDGE = `
 (function () {
   const files = new Map();
@@ -51,15 +60,29 @@ const BRIDGE = `
   };
   window.__emitOpenPaths = (paths) => window.__emit('app:open-paths', paths);
   window.__notifyReadyCalls = 0;
+  /** Every URL the preview handed to the shell, in order. */
+  window.__external = [];
 
   window.sara = {
     openFiles: async () => ({ ok: false, canceled: true }),
-    readFile: async (p) => files.has(p)
-      ? { ok: true, file: { path: p, text: files.get(p), encoding: 'utf8', bom: false, size: files.get(p).length } }
-      : { ok: false, error: 'not found', path: p },
+    /**
+     * Look the path up exactly first, then with separators normalised: the
+     * renderer resolves markdown-relative links to backslash paths, while a
+     * test seeds them with forward slashes. The real fs module takes both.
+     * (No regex literals in this bridge - see the note above BRIDGE.)
+     */
+    readFile: async (p) => {
+      const key = String(p);
+      const norm = (s) => String(s).split('\\\\').join('/');
+      const hit = files.has(key) ? key : [...files.keys()].find((k) => norm(k) === norm(key));
+      if (hit === undefined) return { ok: false, error: 'not found', path: key };
+      const text = files.get(hit);
+      return { ok: true, file: { path: key, text, encoding: 'utf8', bom: false, size: text.length } };
+    },
     saveFile: async (payload) => ({ ok: true, path: payload.filePath || 'C:/mock/Untitled.txt' }),
     fileExists: async () => ({ ok: true, exists: true }),
     revealFile: async () => ({ ok: true }),
+    openExternal: async (url) => { window.__external.push(String(url)); return { ok: true }; },
     confirm: async () => ({ response: 1 }),
     message: async () => ({ ok: true }),
     writeDraft: async (id, payload) => { try { localStorage.setItem('draft.' + id, JSON.stringify(payload)); } catch (e) {} return { ok: true }; },

@@ -147,12 +147,25 @@ const Editor = (() => {
    * ---------------------------------------------------------------- */
 
   const getText = () => (ta ? ta.value : '');
+
+  /**
+   * Replace the whole document.
+   *
+   * This is an edit like any other, so it notifies `onChange` - the same
+   * contract `replaceRange` follows. Without it a programmatic replacement
+   * leaves the tab title, the dirty dot and the markdown preview showing
+   * stale text, because nothing else knows the buffer moved.
+   *
+   * Assigning `.value` does clear the native undo stack, so this is not an
+   * undoable step; that is the documented trade-off of the shared textarea.
+   */
   const setText = (text) => {
     if (!ta) return;
     ta.value = text;
     matchSpans = [];
     currentMatch = -1;
     render();
+    onChange();
     onCaret();
   };
 
@@ -171,6 +184,12 @@ const Editor = (() => {
       if (text[i] === '\n') n++;
     }
     return line === n ? text.length : -1;
+  }
+
+  /** Offset just past a 1-based line, excluding its trailing newline. */
+  function lineEnd(line) {
+    const next = lineStart(line + 1);
+    return next === -1 ? ta.value.length : next - 1;
   }
 
   function lineCount() {
@@ -422,31 +441,121 @@ const Editor = (() => {
     return { from: first, to: lastEnd };
   }
 
+  /**
+   * Width of one indent level.
+   *
+   * Clamped to a positive integer so a corrupt preference cannot turn the
+   * unit into an empty string (Tab would silently do nothing) or blow up
+   * `String.repeat` with a RangeError.
+   */
+  function indentSize() {
+    const size = Math.floor(Number(Store.get('tabSize')));
+    return Number.isFinite(size) && size > 0 ? size : 4;
+  }
+
+  const tabUnit = () => ' '.repeat(indentSize());
+
+  /** A single line with one indent level removed. */
+  function stripIndent(line, size) {
+    if (line.startsWith('\t')) return line.slice(1);
+    const spaces = line.match(/^ {1,}/);
+    if (spaces) return line.slice(Math.min(spaces[0].length, size));
+    return line;
+  }
+
+  /**
+   * Tab.
+   *
+   * With a bare caret this inserts the indent unit **at the caret** - that is
+   * what "press Tab in the middle of a sentence" means, and it is what the
+   * native textarea would have done before we took the key over. Re-indenting
+   * the whole line there would shove the text to the left of the caret
+   * sideways, so the line looks like it jumped instead of splitting.
+   *
+   * With a selection it indents every line the selection touches, which is
+   * the convention every other editor follows and what the menu advertises.
+   */
   function indent() {
+    const { start, end } = getSelection();
+    const unit = tabUnit();
+
+    if (start === end) { insertAtCaret(unit); return; }
+
     const { from, to } = touchedLines();
     const block = ta.value.slice(from, to);
-    const unit = ' '.repeat(Store.get('tabSize') || 4);
-    const indented = block.split('\n').map((l) => (l.length ? unit + l : l)).join('\n');
+    const lines = block.split('\n');
+    const indented = lines.map((l) => (l.length ? unit + l : l)).join('\n');
+    // Nothing but empty lines: fall back to a plain insert at the caret.
     if (indented === block) { insertAtCaret(unit); return; }
-    const { start, end } = getSelection();
+
     replaceRange(from, to, indented, false);
-    ta.setSelectionRange(start + (block[0] !== undefined && ta.value[from] === unit[0] ? unit.length : 0),
-                          end + (indented.length - block.length));
+    // Keep the same text selected. Both ends sit after every indent that was
+    // inserted ahead of them, so each shifts by what its own line gained -
+    // the first line's unit for `start`, the whole block's for `end`.
+    const firstGain = lines[0].length ? unit.length : 0;
+    ta.setSelectionRange(start + firstGain, end + (indented.length - block.length));
     refreshCaret();
   }
 
+  /**
+   * Shift+Tab with a bare caret.
+   *
+   * Inside the line's own indentation this outdents the line - the gesture
+   * for "this line is one level too deep". Past the first non-blank
+   * character it deletes one indent unit immediately before the caret, so
+   * the text to the right slides back and the text to the left does not
+   * move. That is the mirror of what Tab does there.
+   */
+  function outdentAtCaret() {
+    const size = indentSize();
+    const { start } = getSelection();
+    const from = lineStart(lineAt(start));
+    const before = ta.value.slice(from, start);
+
+    if (/^[ \t]*$/.test(before)) {
+      const to = lineEnd(lineAt(start));
+      const block = ta.value.slice(from, to);
+      const stripped = stripIndent(block, size);
+      if (stripped === block) return;               // already flush left
+      replaceRange(from, to, stripped, false);
+      const pos = Math.max(from, start - (block.length - stripped.length));
+      ta.setSelectionRange(pos, pos);
+      refreshCaret();
+      return;
+    }
+
+    const tail = before.match(/\t$/) || before.match(new RegExp(` {1,${size}}$`));
+    if (!tail) return;                              // nothing to give back
+    const cut = start - tail[0].length;
+    replaceRange(cut, start, '', false);
+    ta.setSelectionRange(cut, cut);
+    refreshCaret();
+  }
+
+  /**
+   * Shift+Tab.
+   *
+   * With a selection, every touched line loses one level - and the selection
+   * survives, so a second Shift+Tab outdents the same block again instead of
+   * dropping the caret somewhere else.
+   */
   function outdent() {
+    const { start, end } = getSelection();
+    if (start === end) { outdentAtCaret(); return; }
+
     const { from, to } = touchedLines();
     const block = ta.value.slice(from, to);
-    const size = Store.get('tabSize') || 4;
-    const outdented = block.split('\n').map((l) => {
-      if (l.startsWith('\t')) return l.slice(1);
-      const spaces = l.match(/^ {1,}/);
-      if (spaces) return l.slice(Math.min(spaces[0].length, size));
-      return l;
-    }).join('\n');
+    const size = indentSize();
+    const lines = block.split('\n');
+    const stripped = lines.map((l) => stripIndent(l, size));
+    const outdented = stripped.join('\n');
     if (outdented === block) return;
+
     replaceRange(from, to, outdented, false);
+    // Mirror of indent(): each end moves back by what was removed before it.
+    const firstLoss = lines[0].length - stripped[0].length;
+    ta.setSelectionRange(Math.max(from, start - firstLoss),
+                         Math.max(from, end - (block.length - outdented.length)));
     refreshCaret();
   }
 
@@ -695,7 +804,7 @@ const Editor = (() => {
 
   return {
     init, measure, render, renderGutter, renderHighlight, refreshCaret, positionBand,
-    getText, setText, lineAt, lineStart, lineCount, currentLine, caret,
+    getText, setText, lineAt, lineStart, lineEnd, lineCount, currentLine, caret,
     getSelection, setSelection, selectRange, replaceRange, insertAtCaret, cutSelection,
     scrollCaretIntoView, selectAll, goToLine,
     indent, outdent, moveLine, deleteLine, duplicateLine, toggleComment,

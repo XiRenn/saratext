@@ -61,8 +61,8 @@ html[data-theme="dark"] {
   --line-current:  rgba(255, 255, 255, 0.035);
 
   --sel-bg:        rgba(122, 162, 247, 0.28);
-  --match-bg:      rgba(224, 175, 104, 0.30);
-  --match-cur-bg:  rgba(224, 175, 104, 0.65);
+  --match-bg:      rgba(153, 246, 228, 0.25);
+  --match-cur-bg:  rgba(153, 246, 228, 0.50);
   --match-cur-fg:  #14161a;
 
   --scrollbar:     #3a3f4a;
@@ -106,9 +106,9 @@ html[data-theme="light"] {
   --line-current:  rgba(0, 0, 0, 0.028);
 
   --sel-bg:        rgba(59, 111, 212, 0.22);
-  --match-bg:      rgba(224, 175, 104, 0.42);
-  --match-cur-bg:  #d99b2b;
-  --match-cur-fg:  #ffffff;
+  --match-bg:      rgba(153, 246, 228, 0.45);
+  --match-cur-bg:  #99f6e4;
+  --match-cur-fg:  #14161a;
 
   --scrollbar:     #c3c9d4;
   --scrollbar-hover: #a7aebd;

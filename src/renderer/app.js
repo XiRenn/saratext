@@ -44,6 +44,10 @@
     emptyState: $('emptyState'),
     emptyOpen: $('emptyOpen'),
 
+    previewPane: $('previewPane'),
+    previewBody: $('previewBody'),
+    previewTitle: $('previewTitle'),
+
     statLnCol: $('statLnCol'),
     statSel: $('statSel'),
     statSelDiv: $('statSelDiv'),
@@ -181,6 +185,8 @@
       els.editor.value = '';
       els.editor.disabled = true;
       els.emptyState.hidden = false;
+      Preview.setMode('edit');
+      Preview.render(null);
       renderTabs();
       updateStatus();
       updateTitle();
@@ -203,6 +209,11 @@
 
     Editor.render();
     Editor.refreshCaret();
+    // Restore this tab's view, then paint it. `setMode` is a no-op repaint
+    // when the mode is unchanged, so the content render below is what
+    // actually updates a tab switch inside the same mode.
+    Preview.setMode(doc.view || 'edit');
+    Preview.render(doc);
     renderTabs();
     updateStatus();
     updateTitle();
@@ -524,6 +535,113 @@
   }
 
   /* ================================================================== *
+   * Markdown preview
+   * ================================================================== */
+
+  /**
+   * Switch the editor / preview layout.
+   *
+   * The mode is stored on the document so it survives a tab switch. The
+   * editor is re-measured afterwards because the gutter, the current-line
+   * band and the highlight layer are all derived from the pane's geometry,
+   * which a mode change moves.
+   */
+  function applyView(mode) {
+    const doc = Docs.active();
+    const next = Preview.setMode(mode);
+    if (doc) doc.view = next;
+
+    if (next !== 'preview') {
+      Editor.measure();
+      Editor.render();
+      Editor.refreshCaret();
+    }
+    MenuBar.refresh();
+    return next;
+  }
+
+  function activeDocOrWarn() {
+    const doc = Docs.active();
+    if (!doc) toast('Open a document first', 'warn', 1600);
+    return doc;
+  }
+
+  function cmdTogglePreview() {
+    const doc = activeDocOrWarn();
+    if (!doc) return;
+    const next = doc.view === 'split' ? 'edit' : 'split';
+    applyView(next);
+    toast(next === 'split' ? 'Preview: side by side' : 'Preview closed', 'info', 1400);
+  }
+
+  function cmdPreviewOnly() {
+    const doc = activeDocOrWarn();
+    if (!doc) return;
+    applyView(doc.view === 'preview' ? 'edit' : 'preview');
+  }
+
+  /**
+   * Collapse `.` and `..` segments without touching the filesystem.
+   * @returns {string|null} null when the path would climb above its root
+   */
+  function normalisePath(value) {
+    const out = [];
+    for (const part of String(value).split(/[\\/]+/)) {
+      if (!part || part === '.') continue;
+      if (part === '..') {
+        if (out.length <= 1) return null;   // nothing left to climb into
+        out.pop();
+        continue;
+      }
+      out.push(part);
+    }
+    return out.join('\\');
+  }
+
+  /**
+   * Resolve a click in the preview pane.
+   *
+   * Web links go to the OS browser through the main process. Everything else
+   * is a path relative to the document that contains it, and is only
+   * followed while it stays inside that document's own folder: a markdown
+   * file must not be able to talk the reader into opening
+   * `..\..\Users\…\.ssh\id_rsa` just by labelling the link "docs".
+   */
+  async function openPreviewLink(href, doc) {
+    const url = String(href || '').trim();
+    if (!url) return;
+
+    if (/^(?:https?|mailto):/i.test(url)) {
+      if (!window.sara.openExternal) return;
+      try {
+        const res = await window.sara.openExternal(url);
+        if (res && res.ok === false) toast(`Could not open the link: ${res.error}`, 'warn', 3000);
+      } catch (err) {
+        // The click handler does not await this, so a rejection here would
+        // surface as an unhandled rejection rather than anything visible.
+        toast(`Could not open the link: ${err.message}`, 'warn', 3000);
+      }
+      return;
+    }
+
+    if (!doc || !doc.path) {
+      toast('Save this file first — the link is relative to it', 'warn', 3000);
+      return;
+    }
+
+    const dir = normalisePath(doc.path.replace(/[\\/][^\\/]*$/, ''));
+    const rel = url.split('/').join('\\');
+    const resolved = dir && normalisePath(/^[a-z]:[\\/]/i.test(rel) ? rel : `${dir}\\${rel}`);
+
+    if (!dir || !resolved || !resolved.toLowerCase().startsWith(`${dir.toLowerCase()}\\`)) {
+      toast("Links are only followed inside the document's own folder", 'warn', 3600);
+      return;
+    }
+
+    await openPaths([resolved]);
+  }
+
+  /* ================================================================== *
    * Autosave
    * ================================================================== */
 
@@ -592,6 +710,7 @@
         caret: d.caret,
         scrollTop: d.scrollTop,
         scrollLeft: d.scrollLeft,
+        view: d.view || 'edit',
         dirty: Docs.isDirty(d),
       })),
       savedAt: Date.now(),
@@ -631,6 +750,8 @@
           doc.caret = entry.caret || { start: 0, end: 0 };
           doc.scrollTop = entry.scrollTop || 0;
           doc.scrollLeft = entry.scrollLeft || 0;
+          // An unknown mode from an older session falls back to editing.
+          doc.view = Preview.MODES.includes(entry.view) ? entry.view : 'edit';
           restored++;
         }
       }
@@ -752,7 +873,7 @@
         `Chromium  ${info.chrome}`,
         `Platform  ${info.platform}`,
         '',
-        'Press Ctrl+Shift+P for the command palette, F1 for shortcuts.',
+        'Press Ctrl+Space for the command palette, F1 for shortcuts.',
       ].join('\n'),
       buttons: [{ label: 'Close', value: null, kind: 'primary' }],
     });
@@ -775,7 +896,7 @@
         '  Ctrl+Shift+D      Delete line',
         '  Alt+↑ / Alt+↓     Move line up / down',
         '  Ctrl+/            Toggle comment',
-        '  Tab / Shift+Tab   Indent / outdent',
+        '  Tab / Shift+Tab   Indent at caret / selected lines',
         '',
         'SEARCH',
         '  Ctrl+F            Find         Ctrl+H        Replace',
@@ -785,7 +906,9 @@
         '  Ctrl+Shift+F      Choose font',
         '  Ctrl+= / Ctrl+-   Zoom in / out       Ctrl+0  Reset zoom',
         '  Alt+Z             Word wrap           F11     Fullscreen',
-        '  Ctrl+Shift+L      Toggle theme        Ctrl+Shift+P  Palette',
+        '  Ctrl+Shift+L      Toggle theme        Ctrl+Space    Palette',
+        '  Ctrl+Shift+M      Preview side by side',
+        '  Ctrl+Shift+E      Preview full pane',
         '',
         'MOUSE',
         '  Right-click       Context menu (editor, tabs, chrome)',
@@ -1049,6 +1172,12 @@
     C.register({ id: 'view.zoomIn', label: 'Zoom In', accel: 'ctrl+=', category: 'View', run: cmdZoomIn });
     C.register({ id: 'view.zoomOut', label: 'Zoom Out', accel: 'ctrl+-', category: 'View', run: cmdZoomOut });
     C.register({ id: 'view.zoomReset', label: 'Reset Zoom', accel: 'ctrl+0', category: 'View', run: cmdZoomReset });
+    C.register({ id: 'view.sizeSmall', label: 'Window Size: 350 × 280 px', accel: 'alt+1', category: 'View',
+      run: () => window.sara.windowAction('size-small') });
+    C.register({ id: 'view.sizeMedium', label: 'Window Size: 480 × 350 px', accel: 'alt+2', category: 'View',
+      run: () => window.sara.windowAction('size-medium') });
+    C.register({ id: 'view.sizeLarge', label: 'Window Size: 700 × 600 px', accel: 'alt+3', category: 'View',
+      run: () => window.sara.windowAction('size-large') });
     C.register({ id: 'view.toggleWrap', label: 'Toggle Word Wrap', accel: 'alt+z', category: 'View',
       checked: () => Boolean(Store.get('wordWrap')), run: cmdToggleWrap });
     C.register({ id: 'view.toggleTheme', label: 'Toggle Theme', accel: 'ctrl+shift+l', category: 'View',
@@ -1057,6 +1186,16 @@
       run: cmdToggleFullscreen });
     C.register({ id: 'view.alwaysOnTop', label: 'Always on Top', accel: 'ctrl+`', category: 'View',
       checked: () => Boolean(Store.get('alwaysOnTop')), run: cmdAlwaysOnTop });
+    C.register({ id: 'view.togglePreview', label: 'Markdown Preview: Side by Side',
+      accel: 'ctrl+shift+m', category: 'View',
+      enabled: () => Docs.count() > 0,
+      checked: () => Boolean(Docs.active() && Docs.active().view === 'split'),
+      run: cmdTogglePreview });
+    C.register({ id: 'view.previewOnly', label: 'Markdown Preview: Full Pane',
+      accel: 'ctrl+shift+e', category: 'View',
+      enabled: () => Docs.count() > 0,
+      checked: () => Boolean(Docs.active() && Docs.active().view === 'preview'),
+      run: cmdPreviewOnly });
 
     /* -- Tabs ------------------------------------------------------- */
     C.register({ id: 'tabs.next', label: 'Next Tab', accel: 'ctrl+tab', category: 'Tabs',
@@ -1075,7 +1214,7 @@
       } });
 
     /* -- Tools / system -------------------------------------------- */
-    C.register({ id: 'app.palette', label: 'Command Palette', accel: 'ctrl+shift+p', category: 'App',
+    C.register({ id: 'app.palette', label: 'Command Palette', accel: 'ctrl+space', category: 'App',
       run: () => Palette.open('') });
     C.register({ id: 'app.settings', label: 'Settings…', accel: 'ctrl+,', category: 'App', run: cmdSettings });
     C.register({ id: 'app.shortcuts', label: 'Keyboard Shortcuts', accel: 'f1', category: 'App', run: cmdShortcuts });
@@ -1105,14 +1244,14 @@
     C.menu('View', [
       'view.font', 'view.zoomIn', 'view.zoomOut', 'view.zoomReset', '-',
       'view.toggleWrap', 'view.toggleTheme', '-',
+      'view.togglePreview', 'view.previewOnly', '-',
+      'view.sizeSmall', 'view.sizeMedium', 'view.sizeLarge', '-',
       'view.fullscreen', 'view.alwaysOnTop',
     ]);
-    C.menu('Tabs', [
+    C.menu('Tools', [
       'tabs.next', 'tabs.prev', '-',
       'file.close', 'file.closeOthers', 'tabs.closeAllTabs', '-',
-      'file.reopenClosed',
-    ]);
-    C.menu('Tools', [
+      'file.reopenClosed', '-',
       'app.palette', 'app.settings', '-',
       'app.shortcuts', 'app.about',
     ]);
@@ -1366,6 +1505,9 @@
         updateTitle();
         renderTabs();
         if (Search.isOpen()) Search.refresh();
+        // The preview rides the same debounce: one re-render per quiet
+        // moment rather than one per keystroke.
+        Preview.schedule();
       }, 120);
     };
 
@@ -1444,6 +1586,16 @@
       reset: els.fontReset,
     }, { onCommit: commitFont });
     ContextMenu.init();
+    Preview.init({
+      wrap: els.editorWrap,
+      pane: els.previewPane,
+      body: els.previewBody,
+      title: els.previewTitle,
+    }, {
+      onAction: (action) => { if (action === 'edit') applyView('edit'); },
+      onLink: (href, doc) => openPreviewLink(href, doc),
+      onToast: (message, kind) => toast(message, kind),
+    });
 
     bindUIEvents();
     bindKeyboard();
